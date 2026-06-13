@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Evidencias - Macroservicios</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 50px;
+        }
+
+        h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .back-btn {
+            display: inline-block;
+            margin-bottom: 30px;
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            transition: background 0.3s;
+        }
+
+        .back-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .apps {
+            display: grid;
+            gap: 20px;
+        }
+
+        .app-link {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            text-decoration: none;
+            color: inherit;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s;
+            display: block;
+        }
+
+        .app-link:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+        }
+
+        .app-link h2 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 1.4em;
+        }
+
+        .app-link p {
+            color: #666;
+            margin-bottom: 15px;
+        }
+
+        .app-link .btn {
+            display: inline-block;
+            padding: 8px 16px;
+            background: #667eea;
+            color: white;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        .app-link:hover .btn {
+            background: #764ba2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../../" class="back-btn">← Volver al menú principal</a>
+
+        <header>
+            <h1>📋 Evidencias</h1>
+            <p>Auditoría de Evidencias Operativas</p>
+        </header>
+
+        <div class="apps">
+            <a href="https://urielor94.netlify.app/apps/evidencias/local.html" class="app-link">
+                <h2>🏢 Informe Local</h2>
+                <p>Auditoría de evidencias por ubicación local</p>
+                <span class="btn">Acceder →</span>
+            </a>
+
+            <a href="https://urielor94.netlify.app/apps/evidencias/cali.html" class="app-link">
+                <h2>🌆 Informe Cali</h2>
+                <p>Auditoría de evidencias de Cali con Supabase</p>
+                <span class="btn">Acceder →</span>
+            </a>
+        </div>
+    </div>
+</body>
+</html>
