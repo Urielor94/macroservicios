@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monitor de Productividad</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    :root {
+      --primary:#1565C0; --primary-light:#E3F2FD;
+      --success:#2E7D32; --warning:#E65100; --danger:#B71C1C;
+      --bg:#F0F4F8; --card:#fff; --text:#1A237E; --muted:#78909C; --border:#E0E0E0;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+         background:var(--bg);color:#333;font-size:14px}
+
+    /* Login */
+    #loginOverlay{position:fixed;inset:0;background:var(--primary);
+      display:flex;align-items:center;justify-content:center;z-index:999}
+    #loginOverlay.hidden{display:none}
+    .login-box{background:#fff;border-radius:14px;padding:40px;width:340px;text-align:center;
+               box-shadow:0 8px 32px rgba(0,0,0,.25)}
+    .login-box h2{color:var(--primary);font-size:20px;margin-bottom:6px}
+    .login-box p{color:var(--muted);font-size:13px;margin-bottom:24px}
+    .login-box input{width:100%;padding:10px 14px;border:1.5px solid var(--border);
+      border-radius:8px;font-size:14px;outline:none;margin-bottom:12px}
+    .login-box input:focus{border-color:var(--primary)}
+    .login-box button{width:100%;padding:11px;background:var(--primary);color:#fff;
+      border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer}
+    .login-box button:hover{background:#1976D2}
+    #loginErr{color:var(--danger);font-size:13px;margin-top:10px;min-height:18px}
+
+    /* Header */
+    .header{background:var(--primary);color:#fff;height:58px;padding:0 16px;
+      display:flex;align-items:center;justify-content:space-between;
+      position:sticky;top:0;z-index:200;box-shadow:0 2px 6px rgba(0,0,0,.25)}
+    .header h1{font-size:16px;font-weight:600}
+    .hdr-right{display:flex;align-items:center;gap:8px}
+    .hdr-btn{background:rgba(255,255,255,.18);border:none;color:#fff;
+      padding:5px 11px;border-radius:6px;cursor:pointer;font-size:13px;white-space:nowrap}
+    .hdr-btn:hover{background:rgba(255,255,255,.32)}
+    .hdr-btn.active{background:rgba(255,255,255,.38);font-weight:700}
+    input[type=date]{background:rgba(255,255,255,.18);border:none;color:#fff;
+      padding:5px 10px;border-radius:6px;font-size:13px;cursor:pointer}
+    input[type=date]::-webkit-calendar-picker-indicator{filter:invert(1);cursor:pointer}
+
+    /* Layout */
+    .layout{display:flex;height:calc(100vh - 58px)}
+    .sidebar{width:230px;background:var(--card);border-right:1px solid var(--border);
+             overflow-y:auto;flex-shrink:0}
+    .sidebar-hdr{padding:11px 14px;font-size:11px;font-weight:700;color:var(--muted);
+                 text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--border)}
+    .emp-item{padding:11px 13px;cursor:pointer;display:flex;align-items:center;gap:9px;
+              border-bottom:1px solid #F5F5F5;transition:background .12s;position:relative}
+    .emp-item:hover{background:var(--primary-light)}
+    .emp-item:hover .btn-del{display:flex}
+    .emp-item.active{background:var(--primary-light);border-left:3px solid var(--primary)}
+    .emp-item.is-team{background:#FAFAFA;font-weight:600}
+    .btn-del{display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);
+             width:22px;height:22px;border-radius:50%;border:none;background:#EF5350;
+             color:#fff;font-size:14px;align-items:center;justify-content:center;
+             cursor:pointer;z-index:2}
+    .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+    .dot.on{background:#43A047;box-shadow:0 0 0 2px #A5D6A7}
+    .dot.off{background:#B0BEC5}
+    .emp-name{font-size:13px;font-weight:500}
+    .emp-sub{font-size:11px;color:var(--muted);margin-top:1px}
+
+    /* Main */
+    .main{flex:1;overflow-y:auto;padding:18px}
+
+    /* Cards */
+    .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));
+           gap:13px;margin-bottom:18px}
+    .card{background:var(--card);border-radius:10px;padding:16px 18px;
+          box-shadow:0 1px 4px rgba(0,0,0,.07)}
+    .card-label{font-size:11px;color:var(--muted);font-weight:600;
+                text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+    .card-value{font-size:26px;font-weight:700;color:var(--primary)}
+    .card-sub{font-size:12px;color:var(--muted);margin-top:3px}
+    .prog-bar{height:6px;background:#E0E0E0;border-radius:3px;margin-top:9px;overflow:hidden}
+    .prog-fill{height:100%;border-radius:3px;transition:width .4s}
+
+    /* Sections */
+    .section{background:var(--card);border-radius:10px;padding:16px 18px;
+             box-shadow:0 1px 4px rgba(0,0,0,.07);margin-bottom:16px}
+    .sec-title{font-size:13px;font-weight:700;color:var(--text);
+               margin-bottom:13px;display:flex;align-items:center;gap:6px}
+    .sec-title .sec-actions{margin-left:auto;display:flex;gap:6px}
+    .btn-sm{background:var(--primary-light);color:var(--primary);border:none;
+            padding:4px 10px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer}
+    .btn-sm:hover{background:#BBDEFB}
+    .chart-wrap{position:relative;height:200px}
+    .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+
+    /* Table */
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th{text-align:left;padding:7px 10px;font-size:11px;font-weight:600;color:var(--muted);
+       text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--border)}
+    td{padding:8px 10px;border-bottom:1px solid #F5F5F5}
+    tr:last-child td{border-bottom:none}
+    tr:hover td{background:#FAFAFA}
+    .bar-cell{display:flex;align-items:center;gap:7px}
+    .mini-bar{height:5px;background:#E0E0E0;border-radius:3px;flex:1;
+              overflow:hidden;min-width:50px}
+    .mini-fill{height:100%;border-radius:3px}
+    .hi{color:var(--success);font-weight:700}
+    .mid{color:var(--warning);font-weight:700}
+    .lo{color:var(--danger);font-weight:700}
+
+    /* Weekly */
+    .week-table th,.week-table td{text-align:center;white-space:nowrap}
+    .week-table td:first-child,.week-table th:first-child{text-align:left}
+    .week-cell-hi{background:#E8F5E9;color:var(--success);font-weight:600;
+                  padding:4px 8px;border-radius:5px;font-size:12px}
+    .week-cell-mid{background:#FFF3E0;color:var(--warning);font-weight:600;
+                   padding:4px 8px;border-radius:5px;font-size:12px}
+    .week-cell-lo{background:#FFEBEE;color:var(--danger);font-weight:600;
+                  padding:4px 8px;border-radius:5px;font-size:12px}
+    .week-cell-empty{color:var(--muted);font-size:12px}
+
+    /* Misc */
+    .empty{text-align:center;padding:50px 0;color:var(--muted);font-size:13px}
+    .badge-on{background:#E8F5E9;color:var(--success);padding:2px 8px;
+              border-radius:20px;font-size:11px;font-weight:600}
+    .badge-off{background:#ECEFF1;color:var(--muted);padding:2px 8px;
+               border-radius:20px;font-size:11px;font-weight:600}
+    @media(max-width:700px){.sidebar{display:none}.two-col{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+
+<!-- Login -->
+<div id="loginOverlay">
+  <div class="login-box">
+    <h2>&#128202; Monitor de Productividad</h2>
+    <p>Ingresa la contraseña para continuar</p>
+    <input type="password" id="pwdInput" placeholder="Contraseña"
+           onkeydown="if(event.key==='Enter')doLogin()">
+    <button onclick="doLogin()">Entrar</button>
+    <div id="loginErr"></div>
+  </div>
+</div>
+
+<!-- Header -->
+<div class="header">
+  <h1>&#128202; Monitor de Productividad</h1>
+  <div class="hdr-right">
+    <button class="hdr-btn active" id="btnDia"    onclick="setMode('day')">Día</button>
+    <button class="hdr-btn"        id="btnSemana" onclick="setMode('week')">Semana</button>
+    <button class="hdr-btn"        onclick="shiftDate(-1)">&#9664;</button>
+    <input  type="date" id="datePicker" onchange="onDateChange()">
+    <button class="hdr-btn"        onclick="shiftDate(1)">&#9654;</button>
+    <button class="hdr-btn"        onclick="doLogout()">Salir</button>
+  </div>
+</div>
+
+<!-- Layout -->
+<div class="layout">
+  <div class="sidebar">
+    <div class="sidebar-hdr">Empleados</div>
+    <div id="sidebar"></div>
+  </div>
+  <div class="main" id="main"><div class="empty">Cargando...</div></div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://tjeacrtqllnwbboduxbg.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRqZWFjcnRxbGxud2Jib2R1eGJnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExOTk1NzAsImV4cCI6MjA5Njc3NTU3MH0.0tdQLxSfhpmDnpO8aVE-A99EWTm_dW_nv5knS54SHWo';
+const DASHBOARD_PWD = 'super26';
+
+// ── Supabase RPC ──────────────────────────────────────────────────────────────
+async function sbRpc(fn, params = {}) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(params)
+  });
+  if (!r.ok) {
+    const txt = await r.text().catch(() => String(r.status));
+    throw new Error(`${fn}: ${txt}`);
+  }
+  return r.json();
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+let TOKEN = sessionStorage.getItem('monitor_token') || '';
+
+function showLogin() {
+  document.getElementById('loginOverlay').classList.remove('hidden');
+}
+function hideLogin() {
+  document.getElementById('loginOverlay').classList.add('hidden');
+}
+
+async function doLogin() {
+  const pwd = document.getElementById('pwdInput').value;
+  document.getElementById('loginErr').textContent = '';
+  if (pwd !== DASHBOARD_PWD) {
+    document.getElementById('loginErr').textContent = 'Contraseña incorrecta';
+    return;
+  }
+  TOKEN = 'ok';
+  sessionStorage.setItem('monitor_token', TOKEN);
+  hideLogin();
+  refresh();
+}
+
+function doLogout() {
+  TOKEN = '';
+  sessionStorage.removeItem('monitor_token');
+  showLogin();
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let selected  = '__team__';
+const _now = new Date();
+let curDate   = _now.getFullYear() + '-' +
+                String(_now.getMonth()+1).padStart(2,'0') + '-' +
+                String(_now.getDate()).padStart(2,'0');
+let employees = [];
+let charts    = {};
+let viewMode  = 'day';
+let weekOffset = 0;
+
+document.getElementById('datePicker').value = curDate;
+
+// Init: check token
+if (TOKEN) { hideLogin(); refresh(); } else { showLogin(); }
+
+setInterval(refresh, 30_000);
+setInterval(() => {
+  if (viewMode === 'day') autoRefreshMain();
+}, 60_000);
+
+// ── Mode toggle ───────────────────────────────────────────────────────────────
+function setMode(mode) {
+  viewMode = mode;
+  document.getElementById('btnDia').classList.toggle('active', mode === 'day');
+  document.getElementById('btnSemana').classList.toggle('active', mode === 'week');
+  document.getElementById('datePicker').style.display = mode === 'week' ? 'none' : '';
+  if (mode === 'week') renderWeekly();
+  else { selected === '__team__' ? renderTeam() : renderEmployee(selected); }
+}
+
+// ── Refresh ───────────────────────────────────────────────────────────────────
+async function refresh() {
+  if (!TOKEN) return;
+  try {
+    const rows = await sbRpc('get_employees');
+    const now  = new Date();
+    employees  = rows.map(r => ({
+      name:     r.name,
+      last_seen:r.last_seen,
+      online:   r.last_seen && (now - new Date(r.last_seen)) < 3 * 60 * 1000,
+    }));
+    renderSidebar();
+    if (viewMode === 'day' && selected === '__team__') renderTeam();
+  } catch (e) {
+    document.getElementById('main').innerHTML =
+      `<div class="empty">&#9888; Sin conexion a Supabase: ${esc(e.message)}</div>`;
+  }
+}
+
+function autoRefreshMain() {
+  if (!TOKEN) return;
+  if (selected === '__team__') renderTeam();
+  else renderEmployee(selected);
+}
+
+// ── Sidebar ───────────────────────────────────────────────────────────────────
+function renderSidebar() {
+  const online = employees.filter(e => e.online).length;
+  document.getElementById('sidebar').innerHTML = `
+    <div class="emp-item is-team ${selected==='__team__'?'active':''}" onclick="pick('__team__')">
+      <div class="dot ${online?'on':'off'}"></div>
+      <div><div class="emp-name">Vista del Equipo</div>
+           <div class="emp-sub">${online} en línea · ${employees.length} total</div></div>
+    </div>
+    ${employees.map(e=>`
+      <div class="emp-item ${selected===e.name?'active':''}"
+           data-emp="${esc(e.name)}" onclick="pick(this.dataset.emp)">
+        <div class="dot ${e.online?'on':'off'}"></div>
+        <div><div class="emp-name">${esc(e.name)}</div>
+             <div class="emp-sub">${e.online?'En línea':'Últ: '+fmtTime(e.last_seen)}</div></div>
+        <button class="btn-del" title="Eliminar empleado"
+                data-emp="${esc(e.name)}"
+                onclick="event.stopPropagation();deleteEmployee(this.dataset.emp)">×</button>
+      </div>`).join('')}`;
+}
+
+async function deleteEmployee(name) {
+  if (!confirm(`¿Eliminar todos los datos de "${name}"?\nEsta acción no se puede deshacer.`)) return;
+  try {
+    await sbRpc('delete_employee', {p_emp: name});
+    if (selected === name) selected = '__team__';
+    employees = employees.filter(e => e.name !== name);
+    renderSidebar();
+    if (selected === '__team__') renderTeam();
+  } catch(e) {
+    alert('Error al eliminar: ' + e.message);
+  }
+}
+
+function pick(name) {
+  selected = name;
+  renderSidebar();
+  if (viewMode === 'week') return;
+  name === '__team__' ? renderTeam() : renderEmployee(name);
+}
+
+// ── Date nav ──────────────────────────────────────────────────────────────────
+function shiftDate(delta) {
+  if (viewMode === 'week') {
+    weekOffset += delta;
+    renderWeekly();
+    return;
+  }
+  const d = new Date(curDate + 'T12:00:00');
+  d.setDate(d.getDate() + delta);
+  curDate = d.toISOString().slice(0,10);
+  document.getElementById('datePicker').value = curDate;
+  pick(selected);
+}
+
+function onDateChange() {
+  curDate = document.getElementById('datePicker').value;
+  pick(selected);
+}
+
+// ── Distraction sites ─────────────────────────────────────────────────────────
+const DISTRACTION = new Set([
+  'youtube.com','youtu.be','facebook.com','instagram.com','twitter.com','x.com',
+  'tiktok.com','reddit.com','netflix.com','twitch.tv','pinterest.com',
+  'snapchat.com','tumblr.com','discord.com','spotify.com','soundcloud.com',
+  'primevideo.com','disneyplus.com','hbomax.com','9gag.com','buzzfeed.com',
+  'gaming.youtube.com','twitch.com','kick.com','crunchyroll.com',
+]);
+function isDistraction(domain) {
+  if (!domain) return false;
+  const d = domain.toLowerCase().replace(/^www\./,'');
+  return DISTRACTION.has(d) || [...DISTRACTION].some(s => d === s || d.endsWith('.'+s));
+}
+
+// ── App name mapping ──────────────────────────────────────────────────────────
+const APP_NAMES = {
+  'chrome.exe':'Chrome','msedge.exe':'Edge','firefox.exe':'Firefox',
+  'opera.exe':'Opera','brave.exe':'Brave',
+  'WINWORD.EXE':'Word','EXCEL.EXE':'Excel','POWERPNT.EXE':'PowerPoint',
+  'OUTLOOK.EXE':'Outlook','ONENOTE.EXE':'OneNote','MSPUB.EXE':'Publisher',
+  'MSACCESS.EXE':'Access','VISIO.EXE':'Visio','MSPROJ.EXE':'Project',
+  'Teams.exe':'Teams','slack.exe':'Slack','zoom.exe':'Zoom',
+  'Skype.exe':'Skype','discord.exe':'Discord','WhatsApp.exe':'WhatsApp',
+  'Code.exe':'VS Code','notepad.exe':'Bloc de Notas','notepad++.exe':'Notepad++',
+  'explorer.exe':'Explorador','taskmgr.exe':'Adm. Tareas',
+  'cmd.exe':'Consola','powershell.exe':'PowerShell','WindowsTerminal.exe':'Terminal',
+  'mstsc.exe':'Escritorio Remoto','AcroRd32.exe':'Adobe Reader','Acrobat.exe':'Adobe Acrobat',
+  'AutoCAD.exe':'AutoCAD','vlc.exe':'VLC','spotify.exe':'Spotify',
+  'unknown':'Desconocido',
+};
+function friendlyApp(name) {
+  return APP_NAMES[name] || APP_NAMES[name.toLowerCase()] || name.replace(/\.exe$/i,'');
+}
+
+// ── Team view ─────────────────────────────────────────────────────────────────
+async function renderTeam() {
+  const main = document.getElementById('main');
+  try {
+    const team = await sbRpc('get_team_report', {p_date: curDate});
+    if (!team.length) {
+      main.innerHTML=`<div class="empty">Sin actividad para ${fmtDate(curDate)}.</div>`;
+      return;
+    }
+    const online  = employees.filter(e=>e.online).length;
+    const avgProd = team.reduce((s,e)=>s+e.productivity,0)/team.length;
+    const totalH  = team.reduce((s,e)=>s+e.active_hours,0);
+    main.innerHTML=`
+      <div class="cards">
+        <div class="card">
+          <div class="card-label">En línea ahora</div>
+          <div class="card-value">${online}</div>
+          <div class="card-sub">de ${employees.length} empleados</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Productividad promedio</div>
+          <div class="card-value ${cls(avgProd)}">${avgProd.toFixed(1)}%</div>
+          <div class="prog-bar"><div class="prog-fill"
+            style="width:${avgProd}%;background:${clr(avgProd)}"></div></div>
+        </div>
+        <div class="card">
+          <div class="card-label">Horas activas equipo</div>
+          <div class="card-value">${totalH.toFixed(1)}h</div>
+          <div class="card-sub">combinadas hoy</div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="sec-title">&#128203; Equipo — ${fmtDate(curDate)}
+          <div class="sec-actions">
+            <button class="btn-sm" onclick="exportTeamPDF()">&#8681; Exportar PDF equipo</button>
+          </div>
+        </div>
+        <table><thead><tr>
+          <th>Empleado</th><th>Estado</th><th>Entrada</th><th>Salida</th>
+          <th>Activo</th><th>Total</th><th>Productividad</th>
+        </tr></thead><tbody>
+        ${team.map(e=>{
+          const emp=employees.find(x=>x.name===e.employee)||{};
+          const badge=emp.online
+            ?'<span class="badge-on">En línea</span>'
+            :'<span class="badge-off">Offline</span>';
+          return `<tr data-emp="${esc(e.employee)}" onclick="pick(this.dataset.emp)" style="cursor:pointer">
+            <td><strong>${esc(e.employee)}</strong></td>
+            <td>${badge}</td>
+            <td style="color:var(--muted)">${fmtTime(e.first_seen)}</td>
+            <td style="color:var(--muted)">${fmtTime(e.last_seen)}</td>
+            <td>${e.active_hours.toFixed(1)}h</td>
+            <td>${e.total_hours.toFixed(1)}h</td>
+            <td><div class="bar-cell">
+              <div class="mini-bar"><div class="mini-fill"
+                style="width:${e.productivity}%;background:${clr(e.productivity)}"></div></div>
+              <span class="${cls(e.productivity)}">${e.productivity}%</span>
+            </div></td>
+          </tr>`;
+        }).join('')}
+        </tbody></table>
+      </div>`;
+  } catch(e) {
+    main.innerHTML=`<div class="empty">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+// ── Employee view ─────────────────────────────────────────────────────────────
+async function renderEmployee(name) {
+  const main = document.getElementById('main');
+  main.innerHTML='<div class="empty">Cargando...</div>';
+  killCharts();
+  try {
+    const qs = {p_emp: name, p_date: curDate};
+    const [summaryArr,apps,sites,timeline] = await Promise.all([
+      sbRpc('get_employee_summary', qs),
+      sbRpc('get_employee_apps',    qs),
+      sbRpc('get_employee_sites',   qs),
+      sbRpc('get_employee_timeline',qs),
+    ]);
+    const _s0 = summaryArr[0] || {};
+    const summary = {
+      active_hours:   _s0.active_hours   ?? 0,
+      total_hours:    _s0.total_hours    ?? 0,
+      inactive_hours: _s0.inactive_hours ?? 0,
+      productivity:   _s0.productivity   ?? 0,
+    };
+    const emp=employees.find(e=>e.name===name)||{};
+    main.innerHTML=`
+      <div style="font-size:17px;font-weight:700;color:var(--text);margin-bottom:16px;
+                  display:flex;align-items:center;gap:10px;">
+        <div class="dot ${emp.online?'on':'off'}" style="width:12px;height:12px"></div>
+        ${esc(name)} — ${fmtDate(curDate)}
+        <button class="btn-sm" style="margin-left:auto"
+                data-emp="${esc(name)}" onclick="exportEmployeePDF(this.dataset.emp)">
+          &#8681; Exportar PDF
+        </button>
+      </div>
+      <div class="cards">
+        <div class="card">
+          <div class="card-label">Tiempo activo</div>
+          <div class="card-value">${summary.active_hours.toFixed(1)}h</div>
+          <div class="card-sub">de ${summary.total_hours.toFixed(1)}h registradas</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Productividad</div>
+          <div class="card-value ${cls(summary.productivity)}">${summary.productivity}%</div>
+          <div class="prog-bar"><div class="prog-fill"
+            style="width:${summary.productivity}%;background:${clr(summary.productivity)}"></div></div>
+        </div>
+        <div class="card">
+          <div class="card-label">Tiempo inactivo</div>
+          <div class="card-value" style="color:var(--muted)">${summary.inactive_hours.toFixed(1)}h</div>
+          <div class="card-sub">sin actividad detectada</div>
+        </div>
+        <div class="card">
+          <div class="card-label">&#128683; Distracciones</div>
+          ${(()=>{
+            const distMin = sites.filter(s=>isDistraction(s.domain))
+                                 .reduce((a,s)=>a+s.active_min,0);
+            const totalMin = summary.active_hours * 60;
+            const pct = totalMin>0 ? Math.round(distMin/totalMin*100) : 0;
+            const col = pct>20?'var(--danger)':pct>10?'var(--warning)':'var(--success)';
+            return `<div class="card-value" style="color:${col}">${pct}%</div>
+                    <div class="card-sub">${distMin.toFixed(0)} min en sitios no productivos</div>`;
+          })()}
+        </div>
+      </div>
+      <div class="section">
+        <div class="sec-title">&#128336; Actividad por hora</div>
+        <div id="timelineWrap" class="chart-wrap"><canvas id="cTimeline"></canvas></div>
+      </div>
+      <div class="two-col">
+        <div class="section">
+          <div class="sec-title">&#128187; Aplicaciones usadas</div>
+          ${apps.length?'<div class="chart-wrap"><canvas id="cApps"></canvas></div>'
+                       :'<div class="empty" style="padding:20px">Sin datos</div>'}
+        </div>
+        <div class="section">
+          <div class="sec-title">&#127760; Sitios visitados</div>
+          ${sites.length?`
+            <table>
+              <thead><tr><th>Dominio</th><th>Visitas</th><th>Tiempo activo</th></tr></thead>
+              <tbody>
+                ${sites.slice(0,12).map(s=>{
+                  const bad = isDistraction(s.domain);
+                  return `<tr style="${bad?'background:#FFF5F5':''}">
+                    <td>
+                      ${bad?'<span style="color:var(--danger);font-weight:700">⚠ </span>':''}
+                      <span style="${bad?'color:var(--danger)':''}">${esc(s.domain)}</span>
+                    </td>
+                    <td style="color:var(--muted);text-align:center">${s.visits}</td>
+                    <td style="color:${bad?'var(--danger)':s.active_min>0?'var(--primary)':'var(--muted)'};text-align:center;font-weight:${s.active_min>0?700:400}">
+                      ${s.active_min>0?s.active_min+'min':'—'}
+                    </td>
+                  </tr>`;}).join('')}
+              </tbody>
+            </table>`
+          :'<div class="empty" style="padding:20px">Sin datos de navegador</div>'}
+        </div>
+      </div>`;
+    drawTimeline(timeline);
+    if (apps.length) drawApps(apps);
+  } catch(e) {
+    main.innerHTML=`<div class="empty">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+// ── Weekly view ───────────────────────────────────────────────────────────────
+async function renderWeekly() {
+  const main = document.getElementById('main');
+  main.innerHTML='<div class="empty">Cargando semana...</div>';
+  killCharts();
+  try {
+    // Calculate target week from offset
+    const now = new Date();
+    now.setDate(now.getDate() + weekOffset * 7);
+    const jan4 = new Date(now.getFullYear(), 0, 4);
+    const week = Math.ceil(((now - jan4) / 86400000 + jan4.getDay() + 1) / 7);
+    const year = now.getFullYear();
+
+    const rows = await sbRpc('get_team_weekly', {p_year: year, p_week: week});
+    const days = getWeekDates(year, week);
+    const empData = {};
+    rows.forEach(r => {
+      if (!empData[r.employee]) empData[r.employee] = {};
+      empData[r.employee][r.date] = {active_hours: r.active_hours, productivity: r.productivity};
+    });
+    const empNames = Object.keys(empData);
+
+    const dayLabels = days.map(d=>{
+      const dt=new Date(d+'T12:00:00');
+      return dt.toLocaleDateString('es',{weekday:'short',day:'numeric',month:'short'});
+    });
+
+    // Weekly totals per employee
+    const totals = {};
+    empNames.forEach(emp=>{
+      let h=0;
+      days.forEach(d=>{ h+=(empData[emp][d]?.active_hours||0); });
+      totals[emp]=h;
+    });
+
+    const weekLabel = days[0]+' → '+days[6];
+
+    main.innerHTML=`
+      <div style="font-size:17px;font-weight:700;color:var(--text);margin-bottom:16px">
+        &#128197; Semana ${week} · ${weekLabel}
+      </div>
+      <div class="section">
+        <div class="sec-title">Resumen semanal del equipo</div>
+        ${empNames.length===0?'<div class="empty" style="padding:20px">Sin datos esta semana</div>':`
+        <div style="overflow-x:auto">
+        <table class="week-table">
+          <thead><tr>
+            <th>Empleado</th>
+            ${dayLabels.map(l=>`<th>${l}</th>`).join('')}
+            <th>Total semana</th>
+          </tr></thead>
+          <tbody>
+            ${empNames.map(emp=>`
+              <tr>
+                <td><strong>${esc(emp)}</strong></td>
+                ${days.map(d=>{
+                  const cell=empData[emp]?.[d];
+                  if (!cell||cell.active_hours===0) return '<td><span class="week-cell-empty">—</span></td>';
+                  const p=cell.productivity;
+                  const c=p>=70?'week-cell-hi':p>=40?'week-cell-mid':'week-cell-lo';
+                  return `<td><span class="${c}">${cell.active_hours.toFixed(1)}h · ${p}%</span></td>`;
+                }).join('')}
+                <td><strong>${totals[emp].toFixed(1)}h</strong></td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+        </div>`}
+      </div>`;
+  } catch(e) {
+    main.innerHTML=`<div class="empty">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+// ── PDF con jsPDF + AutoTable (sin renderizado DOM) ───────────────────────────
+function pdfRGB(p) { return p>=70?[46,125,50]:p>=40?[230,81,0]:[183,28,28]; }
+
+function pdfHeader(doc, title, subtitle) {
+  doc.setFillColor(21,101,192);
+  doc.rect(0,0,210,26,'F');
+  doc.setTextColor(255,255,255);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(14);
+  doc.text(title, 10, 11);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(9);
+  doc.text(subtitle, 10, 21);
+  doc.setTextColor(51,51,51);
+}
+
+function pdfCards(doc, y, cards) {
+  const w = (190 - (cards.length-1)*4) / cards.length;
+  cards.forEach((c,i) => {
+    const x = 10 + i*(w+4);
+    doc.setDrawColor(220,220,220); doc.setFillColor(255,255,255);
+    doc.roundedRect(x, y, w, 20, 2, 2, 'FD');
+    doc.setFont('helvetica','normal'); doc.setFontSize(7);
+    doc.setTextColor(120,144,156);
+    doc.text(c.label.toUpperCase(), x+w/2, y+5, {align:'center'});
+    doc.setFont('helvetica','bold'); doc.setFontSize(13);
+    doc.setTextColor(...(c.color||[21,101,192]));
+    doc.text(c.value, x+w/2, y+13, {align:'center'});
+    doc.setFont('helvetica','normal'); doc.setFontSize(7);
+    doc.setTextColor(144,164,174);
+    doc.text(c.sub||'', x+w/2, y+18, {align:'center'});
+  });
+  return y+25;
+}
+
+function pdfSectionTitle(doc, y, title) {
+  doc.setFont('helvetica','bold'); doc.setFontSize(10);
+  doc.setTextColor(21,101,192);
+  doc.text(title, 10, y);
+  doc.setDrawColor(187,222,251); doc.setLineWidth(0.4);
+  doc.line(10, y+1.5, 200, y+1.5);
+  doc.setTextColor(51,51,51);
+  return y+7;
+}
+
+function pdfFooter(doc) {
+  const pages = doc.internal.getNumberOfPages();
+  for (let i=1; i<=pages; i++) {
+    doc.setPage(i);
+    doc.setFont('helvetica','normal'); doc.setFontSize(7);
+    doc.setTextColor(176,190,197);
+    doc.text(
+      `Generado el ${new Date().toLocaleString('es')} · Monitor de Productividad · Pag. ${i}/${pages}`,
+      105, 291, {align:'center'}
+    );
+  }
+}
+
+function tableY(doc) {
+  return doc.lastAutoTable ? doc.lastAutoTable.finalY + 7 : 0;
+}
+
+const TH = { fillColor:[21,101,192], textColor:255, fontStyle:'bold', fontSize:9 };
+const TB = { fontSize:9, cellPadding:3 };
+const AL = { fillColor:[248,248,248] };
+
+// ── PDF equipo ────────────────────────────────────────────────────────────────
+function getWeekDates(year, week) {
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const dow   = jan4.getUTCDay() || 7;
+  const monday = new Date(jan4);
+  monday.setUTCDate(jan4.getUTCDate() - (dow - 1) + (week - 1) * 7);
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setUTCDate(monday.getUTCDate() + i);
+    days.push(d.toISOString().slice(0, 10));
+  }
+  return days;
+}
+
+async function exportTeamPDF() {
+  try {
+    const team = await sbRpc('get_team_report', {p_date: curDate});
+    if (!team.length) { alert('Sin datos para esta fecha'); return; }
+    const {jsPDF} = window.jspdf;
+    const doc = new jsPDF();
+    const online  = employees.filter(e=>e.online).length;
+    const avgProd = team.reduce((s,e)=>s+e.productivity,0)/team.length;
+    const totalH  = team.reduce((s,e)=>s+e.active_hours,0);
+
+    pdfHeader(doc, 'Reporte de Productividad — Equipo', fmtDate(curDate));
+    let y = pdfCards(doc, 30, [
+      {label:'Empleados activos',     value:String(team.length),         sub:online+' en linea ahora'},
+      {label:'Productividad promedio',value:avgProd.toFixed(1)+'%',      sub:'del equipo', color:pdfRGB(avgProd)},
+      {label:'Horas activas',         value:totalH.toFixed(1)+'h',       sub:'combinadas'},
+    ]);
+    y = pdfSectionTitle(doc, y, 'Detalle por empleado');
+
+    doc.autoTable({
+      startY: y,
+      head: [['Empleado','Entrada','Salida','H. Activas','H. Totales','Productividad']],
+      body: team.map(e=>[
+        e.employee, fmtTime(e.first_seen), fmtTime(e.last_seen),
+        e.active_hours.toFixed(1)+'h', e.total_hours.toFixed(1)+'h', e.productivity+'%',
+      ]),
+      headStyles: TH, styles: TB, alternateRowStyles: AL,
+      columnStyles:{0:{fontStyle:'bold'},5:{fontStyle:'bold'}},
+      didParseCell(d){ if(d.column.index===5&&d.section==='body') d.cell.styles.textColor=pdfRGB(parseFloat(d.cell.raw)); },
+      margin:{left:10,right:10},
+    });
+
+    pdfFooter(doc);
+    doc.save(`equipo_${curDate}.pdf`);
+  } catch(e) { alert('Error: '+e.message); }
+}
+
+// ── PDF empleado individual ───────────────────────────────────────────────────
+async function exportEmployeePDF(name) {
+  try {
+    const qs = {p_emp: name, p_date: curDate};
+    const [summaryArr,apps,sites,timeline] = await Promise.all([
+      sbRpc('get_employee_summary', qs),
+      sbRpc('get_employee_apps',    qs),
+      sbRpc('get_employee_sites',   qs),
+      sbRpc('get_employee_timeline',qs),
+    ]);
+    const _s0pdf = summaryArr[0] || {};
+    const summary = {
+      active_hours:   _s0pdf.active_hours   ?? 0,
+      total_hours:    _s0pdf.total_hours    ?? 0,
+      inactive_hours: _s0pdf.inactive_hours ?? 0,
+      productivity:   _s0pdf.productivity   ?? 0,
+    };
+    const distMin = sites.filter(s=>isDistraction(s.domain)).reduce((a,s)=>a+s.active_min,0);
+    const distPct = summary.active_hours>0 ? Math.round(distMin/(summary.active_hours*60)*100) : 0;
+
+    const {jsPDF} = window.jspdf;
+    const doc = new jsPDF();
+
+    pdfHeader(doc, 'Reporte — '+name, fmtDate(curDate));
+    let y = pdfCards(doc, 30, [
+      {label:'Tiempo activo',  value:summary.active_hours.toFixed(1)+'h', sub:'de '+summary.total_hours.toFixed(1)+'h'},
+      {label:'Productividad',  value:summary.productivity+'%',            sub:'del tiempo', color:pdfRGB(summary.productivity)},
+      {label:'Inactivo',       value:summary.inactive_hours.toFixed(1)+'h',sub:'sin actividad', color:[120,144,156]},
+      {label:'Distracciones',  value:distPct+'%',                         sub:distMin.toFixed(0)+' min', color:pdfRGB(100-distPct)},
+    ]);
+
+    // Aplicaciones
+    if (apps.length) {
+      y = pdfSectionTitle(doc, y, 'Aplicaciones usadas');
+      doc.autoTable({
+        startY:y,
+        head:[['Aplicacion','Min. Activos','Min. Totales']],
+        body:apps.slice(0,10).map(a=>[friendlyApp(a.app), a.active_min+' min', a.total_min+' min']),
+        headStyles:TH, styles:TB, alternateRowStyles:AL, margin:{left:10,right:10},
+      });
+    }
+
+    // Sitios
+    if (sites.length) {
+      y = pdfSectionTitle(doc, tableY(doc), 'Sitios visitados');
+      doc.autoTable({
+        startY:y,
+        head:[['Dominio','Visitas','Tiempo activo']],
+        body:sites.slice(0,15).map(s=>[
+          (isDistraction(s.domain)?'! ':'')+s.domain,
+          s.visits,
+          s.active_min>0?s.active_min+' min':'—',
+        ]),
+        headStyles:TH, styles:TB, alternateRowStyles:AL,
+        didParseCell(d){
+          if(d.section==='body'&&isDistraction(sites[d.row.index]?.domain)){
+            d.cell.styles.textColor=[183,28,28];
+            d.cell.styles.fontStyle='bold';
+          }
+        },
+        margin:{left:10,right:10},
+      });
+    }
+
+    // Timeline
+    const activeHours = timeline.filter(h=>h.total_min>0);
+    if (activeHours.length) {
+      y = pdfSectionTitle(doc, tableY(doc), 'Actividad por hora');
+      doc.autoTable({
+        startY:y,
+        head:[['Hora','Min. Activos','Min. Totales','% Productividad']],
+        body:activeHours.map(h=>[
+          pad(h.hour)+':00', h.active_min+' min', h.total_min+' min',
+          h.total_min>0?Math.round(h.active_min/h.total_min*100)+'%':'0%',
+        ]),
+        headStyles:TH, styles:TB, alternateRowStyles:AL,
+        didParseCell(d){
+          if(d.column.index===3&&d.section==='body')
+            d.cell.styles.textColor=pdfRGB(parseFloat(d.cell.raw));
+        },
+        margin:{left:10,right:10},
+      });
+    }
+
+    pdfFooter(doc);
+    doc.save(`reporte_${name}_${curDate}.pdf`);
+  } catch(e) { alert('Error: '+e.message); }
+}
+
+// ── Charts ────────────────────────────────────────────────────────────────────
+function drawTimeline(data) {
+  // Recortar a horas con actividad ± 1h de padding
+  const active = data.filter(d=>d.total_min>0);
+  if (!active.length) {
+    const w=document.getElementById('timelineWrap');
+    if(w) w.innerHTML='<div class="empty" style="padding:20px">Sin actividad</div>';
+    return;
+  }
+  const minH = Math.max(0,  Math.min(...active.map(d=>d.hour)) - 1);
+  const maxH = Math.min(23, Math.max(...active.map(d=>d.hour)) + 1);
+  const trimmed = data.filter(d=>d.hour>=minH && d.hour<=maxH);
+
+  const ctx=document.getElementById('cTimeline');
+  if (!ctx) return;
+  charts.timeline=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:trimmed.map(d=>pad(d.hour)+':00'),
+      datasets:[
+        {label:'Activo (min)',  data:trimmed.map(d=>d.active_min),
+         backgroundColor:'#1565C0',borderRadius:3},
+        {label:'Inactivo (min)',data:trimmed.map(d=>Math.max(0,d.total_min-d.active_min)),
+         backgroundColor:'#CFD8DC',borderRadius:3},
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'top',labels:{boxWidth:12,font:{size:11}}}},
+      scales:{
+        x:{stacked:true,grid:{display:false},ticks:{font:{size:10}}},
+        y:{stacked:true,beginAtZero:true,
+           title:{display:true,text:'Minutos',font:{size:11}}},
+      }
+    }
+  });
+}
+
+function drawApps(apps) {
+  const ctx=document.getElementById('cApps');
+  if (!ctx) return;
+  const top=apps.slice(0,8);
+  charts.apps=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:top.map(a=>friendlyApp(a.app)),
+      datasets:[{
+        label:'Minutos activos',
+        data:top.map(a=>a.active_min),
+        backgroundColor:['#1565C0','#1976D2','#1E88E5','#2196F3',
+                         '#42A5F5','#64B5F6','#90CAF9','#BBDEFB'],
+        borderRadius:4,
+      }]
+    },
+    options:{
+      indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{beginAtZero:true,title:{display:true,text:'Minutos',font:{size:11}}},
+        y:{grid:{display:false},ticks:{font:{size:11}}},
+      }
+    }
+  });
+}
+
+function killCharts() {
+  Object.values(charts).forEach(c=>c.destroy());
+  charts={};
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function cls(p) { return p>=70?'hi':p>=40?'mid':'lo'; }
+function clr(p) { return p>=70?'#2E7D32':p>=40?'#E65100':'#B71C1C'; }
+function pad(n) { return String(n).padStart(2,'0'); }
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                  .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtTime(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'});
+}
+function fmtDate(s) {
+  return new Date(s+'T12:00:00').toLocaleDateString('es',
+    {weekday:'long',year:'numeric',month:'long',day:'numeric'});
+}
+</script>
+</body>
+</html>
